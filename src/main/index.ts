@@ -1,10 +1,11 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, ipcMain } from 'electron'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+import { autoUpdater } from 'electron-updater'
 import { DatabaseManager } from './persistence/database'
 import { ConnectionManager } from './connections/connection-manager'
 import { registerIpcHandlers, createConnectionCallbacks } from './ipc/handlers'
-import { autoUpdater } from 'electron-updater';
+import { IPC_CHANNELS } from '@shared/ipc-channels'
 
 // ============================================================================
 // App State
@@ -25,7 +26,7 @@ function createWindow(): void {
     height: 820,
     minWidth: 900,
     minHeight: 600,
-    title: 'OSRS Tools',
+    title: 'OSRS XP Tracker',
     backgroundColor: '#0E0E0E',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
@@ -56,41 +57,96 @@ function createWindow(): void {
 }
 
 // ============================================================================
+// Auto-Updater
+// ============================================================================
+
+function setupAutoUpdater(): void {
+  // Don't auto-download — let the user decide
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+
+  function pushUpdateStatus(status: string, info?: Record<string, unknown>): void {
+    const win = mainWindow
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IPC_CHANNELS.APP_UPDATE_STATUS, { status, ...info })
+    }
+  }
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[Updater] Checking for update...')
+    pushUpdateStatus('checking')
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`[Updater] Update available: ${info.version}`)
+    pushUpdateStatus('available', { version: info.version, releaseDate: info.releaseDate })
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log(`[Updater] Already up to date: ${info.version}`)
+    pushUpdateStatus('up-to-date', { version: info.version })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    pushUpdateStatus('downloading', {
+      percent: Math.round(progress.percent),
+      transferred: progress.transferred,
+      total: progress.total,
+      bytesPerSecond: progress.bytesPerSecond,
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`[Updater] Update downloaded: ${info.version}`)
+    pushUpdateStatus('downloaded', { version: info.version })
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error(`[Updater] Error: ${err.message}`)
+    pushUpdateStatus('error', { message: err.message })
+  })
+
+  // IPC: Check for updates (triggered by Settings UI)
+  ipcMain.handle(IPC_CHANNELS.APP_CHECK_UPDATE, async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      return { success: true, version: result?.updateInfo?.version }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: Download and install
+  ipcMain.handle(IPC_CHANNELS.APP_INSTALL_UPDATE, async () => {
+    try {
+      await autoUpdater.downloadUpdate()
+      // Once downloaded, quit and install
+      setImmediate(() => autoUpdater.quitAndInstall())
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: Get current version
+  ipcMain.handle(IPC_CHANNELS.APP_GET_VERSION, () => {
+    return app.getVersion()
+  })
+}
+
+// ============================================================================
 // App Lifecycle
 // ============================================================================
 
 app.whenReady().then(() => {
+  // Setup auto-updater
+  setupAutoUpdater()
+
   // Create connection callbacks
   const { onPlayerUpdate, onConnectionStatus, onSnapshotDue } = createConnectionCallbacks(
     dbManager,
     () => mainWindow
   )
-
-  function setupAutoUpdater() {
-  // Check for updates on startup
-  autoUpdater.checkForUpdatesAndNotify(); 
-
-  // Check again every 4 hours
-  setInterval(() => {
-    autoUpdater.checkForUpdatesAndNotify();
-  }, 4 * 60 * 60 * 1000);
-
-  autoUpdater.on('update-available', (info) => {
-    console.info(`Update available: ${info.version}`);
-  });
-
-  autoUpdater.on('update-downloaded', (info) => {
-    // Prompt user via IPC, or auto-install on next quit
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) {
-      win.webContents.send('update:ready', info.version);
-    }
-  });
-
-  autoUpdater.on('error', (err) => {
-    console.error(`Auto-update error: ${err.message}`);
-  });
-}
 
   // Create connection manager
   connectionManager = new ConnectionManager(

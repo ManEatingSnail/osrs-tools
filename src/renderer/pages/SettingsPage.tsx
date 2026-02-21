@@ -3,6 +3,25 @@ import { IPC_CHANNELS } from '@shared/ipc-channels'
 import { ConnectionConfig, ConnectionState } from '@shared/types'
 import { DEFAULT_CONNECTION } from '@shared/constants'
 
+// ============================================================================
+// Update status types
+// ============================================================================
+
+interface UpdateStatus {
+  status: 'idle' | 'checking' | 'available' | 'up-to-date' | 'downloading' | 'downloaded' | 'error'
+  version?: string
+  releaseDate?: string
+  percent?: number
+  transferred?: number
+  total?: number
+  bytesPerSecond?: number
+  message?: string
+}
+
+// ============================================================================
+// Settings Page
+// ============================================================================
+
 export const SettingsPage: React.FC = () => {
   const [connections, setConnections] = useState<ConnectionState[]>([])
   const [loading, setLoading] = useState(true)
@@ -13,13 +32,29 @@ export const SettingsPage: React.FC = () => {
   const [testResult, setTestResult] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
 
+  // Update state
+  const [appVersion, setAppVersion] = useState('...')
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ status: 'idle' })
+
   const loadConnections = useCallback(async () => {
     const result = await window.electronAPI.invoke(IPC_CHANNELS.CONNECTION_LIST)
     setConnections(result as ConnectionState[])
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadConnections() }, [loadConnections])
+  useEffect(() => {
+    loadConnections()
+    // Get app version
+    window.electronAPI.invoke(IPC_CHANNELS.APP_GET_VERSION).then((v) => setAppVersion(v as string))
+  }, [loadConnections])
+
+  // Listen for update status pushes from main process
+  useEffect(() => {
+    const unsub = window.electronAPI.onUpdateStatus((data) => {
+      setUpdateStatus(data as UpdateStatus)
+    })
+    return unsub
+  }, [])
 
   const handleTest = async () => {
     setTesting(true)
@@ -56,12 +91,24 @@ export const SettingsPage: React.FC = () => {
     loadConnections()
   }
 
+  const handleCheckUpdate = async () => {
+    setUpdateStatus({ status: 'checking' })
+    await window.electronAPI.invoke(IPC_CHANNELS.APP_CHECK_UPDATE)
+  }
+
+  const handleInstallUpdate = async () => {
+    await window.electronAPI.invoke(IPC_CHANNELS.APP_INSTALL_UPDATE)
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><span className="text-osrs-text-dim font-body">Loading...</span></div>
   }
 
   return (
     <div className="max-w-2xl space-y-6 animate-fade-in">
+      {/* ================================================================
+          Connections
+          ================================================================ */}
       <h2 className="font-display text-lg font-bold text-osrs-text tracking-wide">Connections</h2>
 
       {connections.length > 0 && (
@@ -133,6 +180,132 @@ export const SettingsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ================================================================
+          Updates
+          ================================================================ */}
+      <h2 className="font-display text-lg font-bold text-osrs-text tracking-wide pt-2">Updates</h2>
+
+      <div className="bg-osrs-panel-light border border-osrs-border rounded-lg p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-sm font-display text-osrs-text font-medium">OSRS XP Tracker</div>
+            <div className="text-xs font-mono text-osrs-text-dim mt-0.5">v{appVersion}</div>
+          </div>
+          <UpdateBadge status={updateStatus} />
+        </div>
+
+        {/* Download progress bar */}
+        {updateStatus.status === 'downloading' && (
+          <div className="mb-4">
+            <div className="w-full h-2 bg-osrs-dark rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-osrs-gold transition-[width] duration-300"
+                style={{ width: `${updateStatus.percent ?? 0}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-[10px] font-mono text-osrs-text-dim/60">
+                {formatBytes(updateStatus.transferred ?? 0)} / {formatBytes(updateStatus.total ?? 0)}
+              </span>
+              <span className="text-[10px] font-mono text-osrs-text-dim/60">
+                {formatBytes(updateStatus.bytesPerSecond ?? 0)}/s
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Status message */}
+        {updateStatus.status === 'available' && (
+          <div className="mb-4 px-3 py-2 rounded bg-osrs-gold/10 text-xs font-body text-osrs-gold">
+            Version {updateStatus.version} is available.
+          </div>
+        )}
+        {updateStatus.status === 'up-to-date' && (
+          <div className="mb-4 px-3 py-2 rounded bg-osrs-green/10 text-xs font-body text-osrs-green">
+            You're running the latest version.
+          </div>
+        )}
+        {updateStatus.status === 'downloaded' && (
+          <div className="mb-4 px-3 py-2 rounded bg-osrs-green/10 text-xs font-body text-osrs-green">
+            Version {updateStatus.version} is ready to install. The app will restart.
+          </div>
+        )}
+        {updateStatus.status === 'error' && (
+          <div className="mb-4 px-3 py-2 rounded bg-red-500/10 text-xs font-mono text-red-400">
+            {updateStatus.message || 'Update check failed'}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          {(updateStatus.status === 'idle' || updateStatus.status === 'up-to-date' || updateStatus.status === 'error') && (
+            <button
+              onClick={handleCheckUpdate}
+              className="px-4 py-2 rounded text-xs font-display bg-osrs-panel-hover border border-osrs-border text-osrs-text hover:border-osrs-gold/30 transition-colors"
+            >
+              Check for Updates
+            </button>
+          )}
+          {updateStatus.status === 'checking' && (
+            <button disabled className="px-4 py-2 rounded text-xs font-display bg-osrs-panel-hover border border-osrs-border text-osrs-text-dim opacity-60">
+              Checking...
+            </button>
+          )}
+          {updateStatus.status === 'available' && (
+            <button
+              onClick={handleInstallUpdate}
+              className="px-4 py-2 rounded text-xs font-display bg-osrs-gold/20 text-osrs-gold hover:bg-osrs-gold/30 transition-colors"
+            >
+              Download & Install
+            </button>
+          )}
+          {updateStatus.status === 'downloading' && (
+            <button disabled className="px-4 py-2 rounded text-xs font-display bg-osrs-gold/20 text-osrs-gold/50 opacity-60">
+              Downloading...
+            </button>
+          )}
+          {updateStatus.status === 'downloaded' && (
+            <button
+              onClick={handleInstallUpdate}
+              className="px-4 py-2 rounded text-xs font-display bg-osrs-green/20 text-osrs-green hover:bg-osrs-green/30 transition-colors"
+            >
+              Restart & Update
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
+}
+
+// ============================================================================
+// Helper Components
+// ============================================================================
+
+const UpdateBadge: React.FC<{ status: UpdateStatus }> = ({ status }) => {
+  switch (status.status) {
+    case 'checking':
+      return <span className="text-[10px] font-mono px-2 py-1 rounded bg-osrs-gold/10 text-osrs-gold/70">Checking...</span>
+    case 'available':
+      return <span className="text-[10px] font-mono px-2 py-1 rounded bg-osrs-gold/15 text-osrs-gold">Update available</span>
+    case 'downloading':
+      return <span className="text-[10px] font-mono px-2 py-1 rounded bg-osrs-gold/10 text-osrs-gold/70">{status.percent ?? 0}%</span>
+    case 'downloaded':
+      return <span className="text-[10px] font-mono px-2 py-1 rounded bg-osrs-green/15 text-osrs-green">Ready to install</span>
+    case 'up-to-date':
+      return <span className="text-[10px] font-mono px-2 py-1 rounded bg-osrs-green/10 text-osrs-green/60">Up to date</span>
+    case 'error':
+      return <span className="text-[10px] font-mono px-2 py-1 rounded bg-red-500/10 text-red-400">Error</span>
+    default:
+      return null
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
 }

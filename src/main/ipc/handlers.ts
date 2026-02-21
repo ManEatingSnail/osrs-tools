@@ -178,12 +178,7 @@ export function registerIpcHandlers(
     return configDb.updateSettings(partial)
   })
 
-  // ---- App ----
-
-  ipcMain.handle(IPC_CHANNELS.APP_GET_VERSION, () => {
-    const { app } = require('electron')
-    return app.getVersion()
-  })
+  // (Version and update handlers registered in setupAutoUpdater)
 }
 
 /**

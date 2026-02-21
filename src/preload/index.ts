@@ -14,6 +14,7 @@ export interface ElectronAPI {
   // Push listeners (main → renderer)
   onPlayerUpdate: (callback: (data: unknown) => void) => () => void
   onConnectionStatus: (callback: (data: unknown) => void) => () => void
+  onUpdateStatus: (callback: (data: unknown) => void) => () => void
 }
 
 const api: ElectronAPI = {
@@ -36,6 +37,12 @@ const api: ElectronAPI = {
     const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data)
     ipcRenderer.on(IPC_CHANNELS.CONNECTION_STATUS, handler)
     return () => ipcRenderer.removeListener(IPC_CHANNELS.CONNECTION_STATUS, handler)
+  },
+
+  onUpdateStatus: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data)
+    ipcRenderer.on(IPC_CHANNELS.APP_UPDATE_STATUS, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.APP_UPDATE_STATUS, handler)
   },
 }
 

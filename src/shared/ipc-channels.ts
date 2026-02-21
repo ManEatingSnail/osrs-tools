@@ -55,6 +55,11 @@ export const IPC_CHANNELS = {
   SETTINGS_UPDATE: 'settings:update',
 
   APP_GET_VERSION: 'app:get-version',
+
+  // Auto-updater
+  APP_CHECK_UPDATE: 'app:check-update',
+  APP_INSTALL_UPDATE: 'app:install-update',
+  APP_UPDATE_STATUS: 'app:update-status',       // push: main → renderer
 } as const
 
 // ============================================================================
