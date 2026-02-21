@@ -25,7 +25,7 @@ function createWindow(): void {
     height: 820,
     minWidth: 900,
     minHeight: 600,
-    title: 'OSRS XP Tracker',
+    title: 'OSRS Tools',
     backgroundColor: '#0E0E0E',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {

@@ -1,5 +1,5 @@
 {
-  "name": "OSRS Tools",
+  "name": "osrs_tools",
   "version": "0.2.0",
   "description": "Application to aid in playing OSRS - Track goals, tasks and more",
   "main": "out/main/index.js",
