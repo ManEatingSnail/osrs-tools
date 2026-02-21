@@ -1,7 +1,7 @@
 {
   "name": "osrs_tools",
   "author": "ManEatingSnail",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Application to aid in playing OSRS - Track goals, tasks and more",
   "main": "out/main/index.js",
   "scripts": {
