@@ -1,7 +1,7 @@
 {
-  "name": "osrs-xp-tracker",
-  "version": "0.1.0",
-  "description": "Real-time OSRS XP tracking dashboard for hardware displays and desktop monitoring",
+  "name": "OSRS Tools",
+  "version": "0.2.0",
+  "description": "Application to aid in playing OSRS - Track goals, tasks and more",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
