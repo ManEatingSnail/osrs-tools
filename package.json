@@ -35,9 +35,37 @@
     "vite": "^6.0.0",
     "@vitejs/plugin-react": "^4.3.0"
   },
-"publish": {
-  "provider": "github",
-  "owner": "ManEatingSnail",
-  "repo": "osrs-tools"
-}
+  "build": {
+    "appId": "com.electron.osrstools",
+    "productName": "osrs_tools",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "static/**/*"
+    ],
+    "mac": {
+      "identity": null,
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ]
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "ManEatingSnail",
+      "repo": "osrs-tools"
+    }
+  }
 }
